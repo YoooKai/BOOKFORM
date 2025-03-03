@@ -1,7 +1,62 @@
 # Cómo hacer una pinche API en express usando estructura hexagonal.
-Esta vaina usa typescript, prisma
 
-Qué es vlidate, construsctor y todo eso, y asincronía, promesa, await,--
+Los pasos para configurar un proyecto express con TypeScript y Prisma son:
+
+### **1. Crear una carpeta y entrar a ella**
+
+* `mkdir ejemplo`: crea una nueva carpeta llamada "ejemplo".
+* `cd ejemplo`: entra en la carpeta recién creada.
+
+### **2. Inicializar un proyecto de Node.js**
+
+* `npm init -y`: inicializa un proyecto de Node.js con valores predeterminados.
+
+En package.json poner los scrips estos, o copiar del ejemplo el archivo entero.
+
+```ts
+"scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "nodemon ./app.ts",
+    "build": "tsc -p ."
+  },
+```
+### **3. Instalar dependencias de desarrollo**
+
+* `npm i -D typescript tsx @types/node`: instala las dependencias de desarrollo necesarias para trabajar con TypeScript.
+
+### **4. Inicializar un proyecto de TypeScript**
+
+* `npx tsc --init`: inicializa un proyecto de TypeScript y crea un archivo de configuración llamado `tsconfig.json`.
+
+
+### **5. Instalar Prisma y el cliente de Prisma**
+
+* `npm i -D prisma`: instala Prisma como dependencia de desarrollo.
+* `npm i @prisma/client`: instala el cliente de Prisma.
+
+### **6. Inicializar un proyecto de Prisma**
+
+* `npx prisma init --datasource-provider mysql`: inicializa un proyecto de Prisma y crea un archivo de configuración llamado `prisma/schema.prisma` con un proveedor de datos MySQL.
+
+### Hay que configurar .env para que se pueda conectar a la base de datos.Crear antes una BBDD usando mamp y SEQUEL ACE, y poner el puerto. Por ejemplo:
+
+```ts
+PORT=4039
+WS_PORT=4049
+DATABASE_URL="mysql://root:root@localhost:8889/ejemplo"
+```
+
+### Para validar el schema (se explicará más tarde):
+* `npx prisma validate`
+
+### Para realizar migraciones de la base de datos, ejecutar el siguiente comando:
+* `npx prisma migrate dev`: realiza las migraciones de la base de datos.
+
+
+### Para correr el proyecto:
+```ts
+npm run dev
+```
 
 
 ## Puntos clave:
@@ -1656,3 +1711,191 @@ Finalmente, el código inicia el servidor web utilizando la clase HttpServer.
 
 - async function startServer(): Promise<void> { ... }: Esta función inicia el servidor web y lo configura para que escuche solicitudes en el puerto definido.
 - startServer();: Esta línea llama a la función startServer para iniciar el servidor web.
+
+# Prisma/schema.prisma
+
+Este archivo es un modelo de datos escrito en Prisma, un framework de ORM (Object-Relational Mapping) para bases de datos. El archivo define la estructura de la base de datos y las relaciones entre las diferentes entidades.  Define los modelos de datos (User, Area...). Contienen los atributos de cada modelo, incluídas las fk. 
+Configuración de la base de datos
+
+### El archivo también define la configuración de la base de datos:
+
+- provider: el proveedor de la base de datos es MySQL.
+- url: la URL de la base de datos se establece mediante una variable de entorno llamada DATABASE_URL.
+- relationMode: el modo de relación se establece en foreignKeys, lo que significa que se utilizarán claves foráneas para establecer las relaciones entre los modelos.
+
+```ts
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider     = "mysql"
+  url          = env("DATABASE_URL")
+  relationMode = "foreignKeys"
+}
+
+model users {
+  id                      String         @id @default(uuid())
+  name                    String
+  email                   String         @unique
+  acess_token             String         @default(uuid())
+  status                  Boolean        @default(true)
+  remove                  Boolean        @default(false)
+  password                String?
+  area_id                 String?
+  Areas                   areas?          @relation(name: "UserArea", fields: [area_id], references: [id])
+  role_id                 String
+  Roles                   roles          @relation(name: "UserRole", fields: [role_id], references: [id])
+  date_created            DateTime       @default(now())
+  date_updated            DateTime       @updatedAt
+  last_login              DateTime?
+  performancesResponsible performances[] @relation("UserResponsable")
+  performancesCreated     performances[] @relation("UserCreated")
+}
+
+model areas {
+  id                    String           @id @default(uuid())
+  name                  String
+  status                Boolean          @default(true)
+  users                 users[]          @relation("UserArea")
+  date_created          DateTime         @default(now())
+  date_updated          DateTime         @updatedAt
+  performanceRelations  relations_areas[] @relation("AreaPerformances")
+}
+
+model roles {
+  id                String   @id @default(uuid())
+  name              String
+  level             Int      @default(30)
+  users             users[]  @relation("UserRole")
+  date_created      DateTime @default(now())
+  date_updated      DateTime @updatedAt
+}
+
+model performances {
+  id                     String                 @id @default(uuid())
+  status                 Boolean                @default(true)
+  stage                  Stages                 @default(borrador)
+  name                   String
+  description            String
+  date_start             DateTime
+  date_end               DateTime
+  id_user_responsable    String?
+  Users_responsable      users?                 @relation(name: "UserResponsable", fields: [id_user_responsable], references: [id])
+  budget                 Float
+  ratings                Float
+  date_created           DateTime               @default(now())
+  date_updated           DateTime               @updatedAt
+  created_user_id        String
+  Users_created          users                  @relation(name: "UserCreated", fields: [created_user_id], references: [id])
+  initiativeRelations    relations_initiatives[] @relation("PerformanceInitiatives")
+  areaRelations          relations_areas[]      @relation("PerformanceAreas")
+  lineRelations          relations_lines[]      @relation("PerformanceLines")
+  values                 values[]               @relation("PerformanceValues")
+}
+
+enum Stages {
+  borrador
+  abierto
+  iniciado
+  cerrado
+  cancelado
+  archivado
+}
+
+model initiatives {
+  id                    String              @id @default(uuid())
+  id_cai                String
+  status                Boolean                @default(true)
+  name                  String
+  description           String
+  date_created          DateTime            @default(now())
+  date_updated          DateTime            @updatedAt
+  father_id             String?
+  parentInitiative      initiatives?        @relation("InitiativeHierarchy", fields: [father_id], references: [id])
+  childInitiatives      initiatives[]       @relation("InitiativeHierarchy")
+  relatedPerformances   relations_initiatives[]
+}
+
+model relations_initiatives {
+  id              String       @id @default(uuid())
+  id_initiative   String
+  initiative      initiatives  @relation(fields: [id_initiative], references: [id])
+  id_performance  String
+  performance     performances @relation(name: "PerformanceInitiatives", fields: [id_performance], references: [id])
+  date_created    DateTime     @default(now())
+  date_updated    DateTime     @updatedAt
+}
+
+model relations_areas {
+  id              String       @id @default(uuid())
+  id_area         String
+  area            areas        @relation(name: "AreaPerformances", fields: [id_area], references: [id])
+  id_performance  String
+  performance     performances @relation(name: "PerformanceAreas", fields: [id_performance], references: [id])
+  date_created    DateTime     @default(now())
+  date_updated    DateTime     @updatedAt
+}
+
+model lines {
+  id                    String            @id @default(uuid())
+  name                  String
+  status                Boolean           @default(true)
+  description           String
+  father_id             String?
+  parentLine            lines?            @relation("LineHierarchy", fields: [father_id], references: [id])
+  childLines            lines[]           @relation("LineHierarchy")
+  date_created          DateTime          @default(now())
+  date_updated          DateTime          @updatedAt
+  values                values[]          @relation("LineValues")
+  performanceRelations  relations_lines[] @relation("LinePerformances")
+  indicatorRelations    relations_indicators_line[] @relation("LineIndicators")
+}
+
+model relations_lines {
+  id              String       @id @default(uuid())
+  id_line         String
+  line            lines        @relation(name: "LinePerformances", fields: [id_line], references: [id])
+  id_performance  String
+  performance     performances @relation(name: "PerformanceLines", fields: [id_performance], references: [id])
+  order           Int          @default(0)
+  date_created    DateTime     @default(now())
+  date_updated    DateTime     @updatedAt
+}
+
+model relations_indicators_line {
+  id              String       @id @default(uuid())
+  id_line         String
+  line            lines        @relation(name: "LineIndicators", fields: [id_line], references: [id])
+  id_indicator    String
+  indicator       indicators   @relation(name: "IndicatorLines", fields: [id_indicator], references: [id])
+  date_created    DateTime     @default(now())
+  date_updated    DateTime     @updatedAt
+}
+
+model indicators {
+  id              String   @id @default(uuid())
+  name            String
+  status          Boolean  @default(true)
+  description     String
+  date_created    DateTime @default(now())
+  date_updated    DateTime @updatedAt
+  values          values[] @relation("IndicatorValues")
+  lineRelations   relations_indicators_line[] @relation("IndicatorLines")
+}
+
+model values {
+  id              String       @id @default(uuid())
+  id_indicator    String
+  indicator       indicators   @relation(name: "IndicatorValues", fields: [id_indicator], references: [id])
+  id_line         String
+  line            lines        @relation(name: "LineValues", fields: [id_line], references: [id])
+  id_performance  String
+  performance     performances @relation(name: "PerformanceValues", fields: [id_performance], references: [id])
+  value           String?
+  order           Int          @default(0)
+  date_created    DateTime     @default(now())
+  date_updated    DateTime     @updatedAt
+}
+
+```
